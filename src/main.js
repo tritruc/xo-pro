@@ -183,6 +183,15 @@ $('#joinBtn').onclick = () => {
 };
 
 const canvas = $('#board');
+
+function canvasScale() {
+  const rect = canvas.getBoundingClientRect();
+  return {
+    sx: canvas.width / rect.width,
+    sy: canvas.height / rect.height,
+    rect,
+  };
+}
 canvas.addEventListener('pointerdown', (e) => {
   dragging = true;
   moved = false;
@@ -193,8 +202,9 @@ canvas.addEventListener('pointerdown', (e) => {
 
 canvas.addEventListener('pointermove', (e) => {
   if (!dragging) return;
-  const dx = e.clientX - lx;
-  const dy = e.clientY - ly;
+  const { sx, sy } = canvasScale();
+  const dx = (e.clientX - lx) * sx;
+  const dy = (e.clientY - ly) * sy;
   if (Math.abs(dx) + Math.abs(dy) > DRAG_THRESHOLD) moved = true;
 
   renderer.cx -= dx / renderer.scale;
@@ -210,8 +220,10 @@ canvas.addEventListener('pointerup', () => {
 
 canvas.addEventListener('click', (e) => {
   if (moved) return;
-  const rect = canvas.getBoundingClientRect();
-  const [x, y] = renderer.cell(e.clientX - rect.left, e.clientY - rect.top);
+  const { sx, sy, rect } = canvasScale();
+  const px = (e.clientX - rect.left) * sx;
+  const py = (e.clientY - rect.top) * sy;
+  const [x, y] = renderer.cell(px, py);
   placeAt(x, y, true);
 });
 
