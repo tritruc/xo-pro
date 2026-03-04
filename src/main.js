@@ -1,5 +1,5 @@
 import {GameEngine} from './game.js'; import {BoardRenderer} from './render.js'; import {SoundFx} from './sound.js'; import {P2PRoom} from './p2p.js';
-const $=s=>document.querySelector(s), g=new GameEngine(), r=new BoardRenderer($('#board')), sfx=new SoundFx(); let mode='ai', my='X', drag=false,lx=0,ly=0;
+const $=s=>document.querySelector(s), g=new GameEngine(), r=new BoardRenderer($('#board')), sfx=new SoundFx(); let mode='ai', my='X', drag=false,lx=0,ly=0,moved=false; const DRAG_THRESHOLD=6;
 const room=new P2PRoom(onRemote,t=>$('#roomStatus').textContent=t);
 const st=t=>$('#statusText').textContent=t, role=t=>$('#roleText').textContent=t, draw=()=>r.draw(g.board);
 function reset(emit=true){g.reset();st('Lượt: X');draw();if(emit&&mode==='online')room.send({type:'reset'})}
@@ -10,5 +10,20 @@ $('#resetBtn').onclick=()=>reset(true); $('#soundBtn').onclick=()=>$('#soundBtn'
 $('#zoomIn').onclick=()=>{r.scale=Math.min(68,r.scale+4);draw()}; $('#zoomOut').onclick=()=>{r.scale=Math.max(26,r.scale-4);draw()}; $('#centerBtn').onclick=()=>{r.cx=0;r.cy=0;draw()};
 $('#hostBtn').onclick=()=>{const v=$('#roomInput').value.trim(); if(!v)return alert('Nhập số phòng'); room.host(v); my='X'; role('Bạn: X (Host)')};
 $('#joinBtn').onclick=()=>{const v=$('#roomInput').value.trim(); if(!v)return alert('Nhập số phòng'); room.join(v); my='O'; role('Bạn: O (Guest)')};
-const cv=$('#board'); cv.addEventListener('pointerdown',e=>{drag=true;lx=e.clientX;ly=e.clientY;cv.setPointerCapture(e.pointerId)}); cv.addEventListener('pointermove',e=>{if(!drag)return; const dx=e.clientX-lx,dy=e.clientY-ly; r.cx-=dx/r.scale; r.cy-=dy/r.scale; lx=e.clientX;ly=e.clientY; draw()}); cv.addEventListener('pointerup',()=>drag=false); cv.addEventListener('click',e=>{const b=cv.getBoundingClientRect(), [x,y]=r.cell(e.clientX-b.left,e.clientY-b.top); place(x,y)});
+const cv=$('#board');
+cv.addEventListener('pointerdown',e=>{drag=true; moved=false; lx=e.clientX; ly=e.clientY; cv.setPointerCapture(e.pointerId)});
+cv.addEventListener('pointermove',e=>{
+  if(!drag) return;
+  const dx=e.clientX-lx, dy=e.clientY-ly;
+  if(Math.abs(dx)+Math.abs(dy) > DRAG_THRESHOLD) moved=true;
+  r.cx -= dx/r.scale; r.cy -= dy/r.scale;
+  lx=e.clientX; ly=e.clientY;
+  draw();
+});
+cv.addEventListener('pointerup',()=>{ drag=false; });
+cv.addEventListener('click',e=>{
+  if(moved) return;
+  const b=cv.getBoundingClientRect(), [x,y]=r.cell(e.clientX-b.left,e.clientY-b.top);
+  place(x,y);
+});
 draw();
