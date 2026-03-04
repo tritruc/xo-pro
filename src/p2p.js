@@ -1,55 +1,89 @@
 const hostId = (room) => `xo-pro-${String(room).replace(/[^a-zA-Z0-9_-]/g, '')}`;
 
+function waitOpen(peer, timeoutMs = 10000) {
+  return new Promise((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error('open-timeout')), timeoutMs);
+    peer.once('open', () => {
+      clearTimeout(t);
+      resolve();
+    });
+    peer.once('error', (e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
+
 export class P2PRoom {
   constructor(onData, onStatus) {
     this.peer = null;
     this.conn = null;
     this.onData = onData;
     this.onStatus = onStatus;
-    this._boundOpen = false;
+    this.currentMode = null;
   }
 
-  ensurePeer() {
-    if (this.peer) return;
-    this.peer = new Peer();
-    this.peer.on('error', (e) => this.onStatus(`❌ Peer lỗi: ${e?.type || e?.message || 'unknown'}`));
+  async reset() {
+    try {
+      if (this.conn) this.conn.close();
+    } catch {}
+    this.conn = null;
+
+    try {
+      if (this.peer) this.peer.destroy();
+    } catch {}
+    this.peer = null;
+    this.currentMode = null;
   }
 
-  host(room) {
+  bindConn(conn, openMessage) {
+    this.conn = conn;
+    conn.on('open', () => this.onStatus(openMessage));
+    conn.on('data', (d) => this.onData(d));
+    conn.on('close', () => this.onStatus('⚠️ Kết nối phòng đã đóng'));
+    conn.on('error', (e) => this.onStatus(`❌ Lỗi kết nối phòng: ${e?.type || e?.message || 'unknown'}`));
+  }
+
+  async host(room) {
+    await this.reset();
+    this.currentMode = 'host';
+
     const id = hostId(room);
-    this.ensurePeer();
+    this.onStatus('⏳ Đang tạo phòng...');
 
-    const bindHost = () => {
-      if (this._boundOpen) return;
-      this._boundOpen = true;
-      this.peer.on('open', () => {
-        this.peer.destroy();
-        this.peer = new Peer(id);
-        this.peer.on('open', () => this.onStatus(`✅ Host phòng ${room}. Chờ người vào...`));
-        this.peer.on('connection', (c) => this.bindConn(c, `🎉 Có người vào phòng ${room}`));
-        this.peer.on('error', (e) => this.onStatus(`❌ Host lỗi: ${e?.type || e?.message || 'unknown'}`));
-      });
-    };
+    this.peer = new Peer(id);
+    this.peer.on('error', (e) => {
+      if (e?.type === 'unavailable-id') {
+        this.onStatus('❌ Số phòng đã có người host. Hãy đổi số khác.');
+      } else {
+        this.onStatus(`❌ Host lỗi: ${e?.type || e?.message || 'unknown'}`);
+      }
+    });
 
-    bindHost();
-  }
+    await waitOpen(this.peer);
+    this.onStatus(`✅ Host phòng ${room}. Chờ người vào...`);
 
-  join(room) {
-    const id = hostId(room);
-    this.ensurePeer();
-
-    this.peer.on('open', () => {
-      const c = this.peer.connect(id, { reliable: true });
-      this.bindConn(c, `🎉 Đã vào phòng ${room}`);
+    this.peer.on('connection', (c) => {
+      this.bindConn(c, `🎉 Người chơi đã vào phòng ${room}`);
     });
   }
 
-  bindConn(c, openMsg) {
-    this.conn = c;
-    c.on('open', () => this.onStatus(openMsg));
-    c.on('data', (d) => this.onData(d));
-    c.on('close', () => this.onStatus('⚠️ Kết nối phòng đã đóng'));
-    c.on('error', () => this.onStatus('❌ Lỗi kết nối phòng'));
+  async join(room) {
+    await this.reset();
+    this.currentMode = 'join';
+
+    const id = hostId(room);
+    this.onStatus('⏳ Đang kết nối phòng...');
+
+    this.peer = new Peer();
+    this.peer.on('error', (e) => {
+      this.onStatus(`❌ Peer lỗi: ${e?.type || e?.message || 'unknown'}`);
+    });
+
+    await waitOpen(this.peer);
+
+    const conn = this.peer.connect(id, { reliable: true });
+    this.bindConn(conn, `🎉 Đã vào phòng ${room}`);
   }
 
   send(payload) {

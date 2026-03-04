@@ -139,11 +139,12 @@ function onRemoteData(msg) {
   }
 }
 
-$('#mode').onchange = (e) => {
+$('#mode').onchange = async (e) => {
   mode = e.target.value;
   roomPanelEl.hidden = mode !== 'online';
   myRole = 'X';
   setRole('Bạn: X');
+  await room.reset();
   roomStatusEl.textContent = mode === 'online' ? 'Chưa kết nối phòng.' : 'Chế độ đấu máy.';
   resetGame(false);
 };
@@ -171,26 +172,34 @@ $('#centerBtn').onclick = () => {
   draw();
 };
 
-$('#hostBtn').onclick = () => {
+$('#hostBtn').onclick = async () => {
   const roomId = ($('#roomInput').value || '').trim();
   if (!/^\d{3,8}$/.test(roomId)) {
     alert('Số phòng phải từ 3 đến 8 chữ số.');
     return;
   }
-  room.host(roomId);
-  myRole = 'X';
-  setRole('Bạn: X (Host)');
+  try {
+    await room.host(roomId);
+    myRole = 'X';
+    setRole('Bạn: X (Host)');
+  } catch {
+    roomStatusEl.textContent = '❌ Không tạo được phòng. Kiểm tra mạng rồi thử lại.';
+  }
 };
 
-$('#joinBtn').onclick = () => {
+$('#joinBtn').onclick = async () => {
   const roomId = ($('#roomInput').value || '').trim();
   if (!/^\d{3,8}$/.test(roomId)) {
     alert('Số phòng phải từ 3 đến 8 chữ số.');
     return;
   }
-  room.join(roomId);
-  myRole = 'O';
-  setRole('Bạn: O (Guest)');
+  try {
+    await room.join(roomId);
+    myRole = 'O';
+    setRole('Bạn: O (Guest)');
+  } catch {
+    roomStatusEl.textContent = '❌ Không vào được phòng. Kiểm tra số phòng hoặc mạng.';
+  }
 };
 
 canvas.addEventListener('pointerdown', (e) => {
