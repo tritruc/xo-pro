@@ -156,12 +156,12 @@ $('#soundBtn').onclick = () => {
 };
 
 $('#zoomIn').onclick = () => {
-  renderer.scale = Math.min(68, renderer.scale + 4);
+  renderer.scale = Math.min(84, renderer.scale + 4);
   draw();
 };
 
 $('#zoomOut').onclick = () => {
-  renderer.scale = Math.max(24, renderer.scale - 4);
+  renderer.scale = Math.max(44, renderer.scale - 4);
   draw();
 };
 
